@@ -1,18 +1,15 @@
 import time
 import traceback
-
 from fake_useragent import UserAgent
-
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
-from selenium.webdriver.common.keys import Keys
-
-from webdriver_manager.chrome import ChromeDriverManager, ChromeDriver
+from webdriver_manager.chrome import ChromeDriverManager
 from selenium_stealth import stealth
-
 from dotenv import load_dotenv
 import os
+import random
+from bs4 import BeautifulSoup as bs
 
 load_dotenv()
 
@@ -85,45 +82,73 @@ class LinkedinScraper:
         except Exception as e:
             print(traceback.format_exc())
 
-    def send_message(self, recipient: str, message: str):
+    def send_message(self, recipients: list, message: str):
         if not self.driver:
             return
+        
+        if recipients:
+            for recipient in recipients:
+                link = f"https://www.linkedin.com{recipient}"
+                try:
+                    self.driver.get(link)
+                    self.driver.implicitly_wait(6)
 
-        link = "https://www.linkedin.com/messaging/thread/new/"
-        try:
-            self.driver.get(link)
-            self.driver.implicitly_wait(6)
+                    time.sleep(2)
 
-            time.sleep(3)
+                    message_button = self.driver.find_element(By.XPATH, '//button[contains(@class, "artdeco-button artdeco-button--2 artdeco-button--primary ember-view pvs-profile-actions__action")]')
+                    message_button.click()
 
-            search_name = self.driver.find_element(
-                By.XPATH,
-                '//input[contains(@class, "msg-connections-typeahead__search-field")]',
-            )
-            for name_part in recipient.split():
-                search_name.send_keys(f"{name_part} ")
-                time.sleep(1)
-            time.sleep(2)
+                    time.sleep(2)
 
-            search_name.send_keys(Keys.RETURN)
-            message_box = self.driver.find_element(
-                By.XPATH,
-                '//form[contains(@class, "msg-form")]/div[3]/div/div[1]/div[1]/p',
-            )
-            message_box.send_keys(message)
-            time.sleep(3)
+                    message_box = self.driver.find_element(
+                        By.XPATH,
+                        '//form[contains(@class, "msg-form")]/div[3]/div/div[1]/div[1]/p',
+                    )
+                    message_box.send_keys(message)
+                    time.sleep(3)
 
-            send_button = self.driver.find_element(
-                By.XPATH,
-                '//form[contains(@class, "msg-form")]/footer/div[2]/div[1]/button',
-            )
-            send_button.click()
+                    send_button = self.driver.find_element(
+                        By.XPATH,
+                        '//form[contains(@class, "msg-form")]/footer/div[2]/div[1]/button',
+                    )
+                    send_button.click()
 
-            time.sleep(8)
+                    time.sleep(5)
 
-        except Exception as e:
-            print(traceback.format_exc())
+                    close_button = self.driver.find_element(
+                        By.XPATH,  '//button[contains(@class, "msg-overlay-bubble-header__control artdeco-button artdeco-button--circle artdeco-button--muted artdeco-button--1 artdeco-button--tertiary ember-view")]',
+                    )
+                    close_button.click()
 
+                    time.sleep(8)
+
+                except Exception as e:
+                    print(traceback.format_exc())
+
+
+    def get_connection_list(self):
+        self.driver.get("https://www.linkedin.com/mynetwork/invite-connect/connections/")
+
+        total_height = self.driver.execute_script("return document.body.scrollHeight")
+        while True:
+            self.driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+            time.sleep(random.uniform(2.5, 4.9))
+            new_height = self.driver.execute_script("return document.body.scrollHeight")
+            if new_height == total_height:
+                break
+            total_height = new_height
+
+        page = bs(self.driver.page_source, 'html.parser')
+        content = page.find_all('a', {'class': "ember-view mn-connection-card__link"})
+
+        mynetwork = []
+        for contact in content:
+            mynetwork.append(contact.get('href'))
+
+        print(len(mynetwork), " connections")
+
+        return mynetwork
+    
     def logout(self):
         if not self.driver:
             return
@@ -137,11 +162,13 @@ class LinkedinScraper:
             print(traceback.format_exc())
 
 
-
 scraper = LinkedinScraper()
 
 user_email = os.getenv('LINKEDIN_USER')
 user_password = os.getenv('LINKEDIN_PASSWORD')
 scraper.login(email=user_email, password=user_password)
-scraper.send_message(recipient="Sandeep Singh Solanki", message="Hello !")
+time.sleep(30)
+connections_list = scraper.get_connection_list() 
+time.sleep(30)
+scraper.send_message(recipients=connections_list, message="Hello !")
 scraper.logout()
