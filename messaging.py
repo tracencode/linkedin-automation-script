@@ -13,9 +13,25 @@ from bs4 import BeautifulSoup as bs
 
 load_dotenv()
 
+
 class LinkedinScraper:
     def __init__(self) -> None:
         self.driver = self._get_driver()
+        if not self.cookies_exist_in_browser():
+            self.login(email=os.getenv('LINKEDIN_USER'), password=os.getenv('LINKEDIN_PASSWORD'))
+
+
+    def cookies_exist_in_browser(self, cookie_name):
+        cookies = self.driver.get_cookies()
+        for cookie in cookies:
+            if cookie['name'] == cookie_name:
+                return True
+        return False
+
+    def save_cookies_to_browser(self):
+        cookies = self.driver.get_cookies()
+        for cookie in cookies:
+            self.driver.add_cookie(cookie)
 
     def _get_driver(self):
         ua = UserAgent()
@@ -79,6 +95,8 @@ class LinkedinScraper:
             )
             sign_in.click()
             time.sleep(1)
+            self.save_cookies_to_browser()
+            time.sleep(2)
         except Exception as e:
             print(traceback.format_exc())
 
@@ -88,24 +106,25 @@ class LinkedinScraper:
         
         if recipients:
             for recipient in recipients:
+                time.sleep(5)
                 link = f"https://www.linkedin.com{recipient}"
                 try:
                     self.driver.get(link)
                     self.driver.implicitly_wait(6)
 
-                    time.sleep(2)
+                    time.sleep(7)
 
                     message_button = self.driver.find_element(By.XPATH, '//button[contains(@class, "artdeco-button artdeco-button--2 artdeco-button--primary ember-view pvs-profile-actions__action")]')
                     message_button.click()
 
-                    time.sleep(2)
+                    time.sleep(10)
 
-                    message_box = self.driver.find_element(
-                        By.XPATH,
-                        '//form[contains(@class, "msg-form")]/div[3]/div/div[1]/div[1]/p',
-                    )
-                    message_box.send_keys(message)
-                    time.sleep(3)
+                    # message_box = self.driver.find_element(
+                    #     By.XPATH,
+                    #     '//form[contains(@class, "msg-form")]/div[3]/div/div[1]/div[1]/p',
+                    # )
+                    # message_box.send_keys(message)
+                    # time.sleep(3)
 
                     send_button = self.driver.find_element(
                         By.XPATH,
@@ -113,7 +132,7 @@ class LinkedinScraper:
                     )
                     send_button.click()
 
-                    time.sleep(5)
+                    time.sleep(10)
 
                     close_button = self.driver.find_element(
                         By.XPATH,  '//button[contains(@class, "msg-overlay-bubble-header__control artdeco-button artdeco-button--circle artdeco-button--muted artdeco-button--1 artdeco-button--tertiary ember-view")]',
@@ -123,7 +142,7 @@ class LinkedinScraper:
                     time.sleep(8)
 
                 except Exception as e:
-                    print(traceback.format_exc())
+                    print(e)
 
 
     def get_connection_list(self):
@@ -135,7 +154,15 @@ class LinkedinScraper:
             time.sleep(random.uniform(2.5, 4.9))
             new_height = self.driver.execute_script("return document.body.scrollHeight")
             if new_height == total_height:
-                break
+                time.sleep(2)
+                try:
+                    show_more_button = self.driver.find_element(
+                        By.XPATH,  '//button[contains(@class, "artdeco-button artdeco-button--muted artdeco-button--1 artdeco-button--full artdeco-button--secondary ember-view scaffold-finite-scroll__load-button")]',
+                    )
+                    show_more_button.click()
+                    time.sleep(2)
+                except:
+                    break
             total_height = new_height
 
         page = bs(self.driver.page_source, 'html.parser')
@@ -166,7 +193,7 @@ scraper = LinkedinScraper()
 
 user_email = os.getenv('LINKEDIN_USER')
 user_password = os.getenv('LINKEDIN_PASSWORD')
-scraper.login(email=user_email, password=user_password)
+# scraper.login(email=user_email, password=user_password)
 time.sleep(30)
 connections_list = scraper.get_connection_list() 
 time.sleep(30)
